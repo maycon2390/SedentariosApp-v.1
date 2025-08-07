@@ -1,4 +1,3 @@
-// App.js
 import React, {
   createContext,
   useContext,
@@ -19,19 +18,15 @@ import {
 import { Picker } from '@react-native-picker/picker';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-
-import SecondScreen from './SecondScreen';
-import CalculationScreen from './CalculationScreen';
-
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// Keys para AsyncStorage
+// Constantes para AsyncStorage
 const SALVAR_CADASTROS = 'cadastros';
 const SALVAR_TIME_A = 'timeA';
 const SALVAR_TIME_B = 'timeB';
 const SALVAR_PROXIMA = 'proxima';
 
-// Funções auxiliares AsyncStorage
+// AsyncStorage helpers
 const loadJSON = async (key, fallback) => {
   try {
     const v = await AsyncStorage.getItem(key);
@@ -50,79 +45,70 @@ const saveJSON = async (key, value) => {
   }
 };
 
-const Tab = createBottomTabNavigator();
-
 const AppContext = createContext();
-
 export const useApp = () => useContext(AppContext);
 
-// Função para distribuir proporcionalmente os 10 primeiros nomes por nível
-const distribuir = (cadastros) => {
-  const primeiros = cadastros.slice(0, 10);
-  const restante = cadastros.slice(10);
+const Tab = createBottomTabNavigator();
 
-  // Agrupa por nível
-  const porNivel = {};
-  primeiros.forEach((item) => {
-    if (!porNivel[item.nivel]) porNivel[item.nivel] = [];
-    porNivel[item.nivel].push(item);
+// Função para distribuir 10 primeiros da lista entre timeA e timeB niveladamente por categoria
+const distribuir = (lista) => {
+  const dezPrimeiros = lista.slice(0, 10);
+  const restante = lista.slice(10);
+
+  // Agrupa por categoria (S, J, I)
+  const porCategoria = {};
+  dezPrimeiros.forEach((item) => {
+    if (!porCategoria[item.categoria]) porCategoria[item.categoria] = [];
+    porCategoria[item.categoria].push(item);
   });
 
   const timeA = [];
   const timeB = [];
 
-  Object.values(porNivel).forEach((listaNivel) => {
-    const metade = Math.floor(listaNivel.length / 2);
-    const sobra = listaNivel.length % 2;
+  Object.values(porCategoria).forEach((listaCategoria) => {
+    const metade = Math.floor(listaCategoria.length / 2);
+    const sobra = listaCategoria.length % 2;
 
-    // Divide metade para A e metade para B
-    timeA.push(...listaNivel.slice(0, metade));
-    timeB.push(...listaNivel.slice(metade, metade + metade));
+    timeA.push(...listaCategoria.slice(0, metade));
+    timeB.push(...listaCategoria.slice(metade, metade + metade));
 
-    // Distribui a sobra para quem tiver menos itens
     if (sobra) {
       if (timeA.length <= timeB.length) {
-        timeA.push(listaNivel[listaNivel.length - 1]);
+        timeA.push(listaCategoria[listaCategoria.length - 1]);
       } else {
-        timeB.push(listaNivel[listaNivel.length - 1]);
+        timeB.push(listaCategoria[listaCategoria.length - 1]);
       }
     }
   });
 
-  // Limita o tamanho máximo 5 para cada time
   const trimTime = (time) => (time.length <= 5 ? time : time.slice(0, 5));
   const finalA = trimTime(timeA);
   const finalB = trimTime(timeB);
 
-  // Sobras que extrapolam 5 em cada time retornam para proxima junto com os restantes
-  const excedenteA = timeA.length > 5 ? timeA.slice(5) : [];
-  const excedenteB = timeB.length > 5 ? timeB.slice(5) : [];
-  const proxima = [...restante, ...excedenteA, ...excedenteB];
+  // Remove usados da proxima e junta resto com o restante da lista
+  const usados = finalA.concat(finalB);
+  const novaProxima = [
+    ...restante,
+    ...lista.filter((item) => !dezPrimeiros.includes(item)),
+  ].filter((item) => !usados.some((u) => u.id === item.id));
 
-  return { timeA: finalA, timeB: finalB, proxima };
+  return { timeA: finalA, timeB: finalB, proxima: novaProxima };
 };
 
+// Tela Principal: cadastro e ativar/desativar nomes
 function MainScreen() {
-  const {
-    cadastros,
-    setCadastros,
-    distribuirTimes,
-    adicionarReserva,
-  } = useApp();
+  const { cadastros, setCadastros, proxima, setProxima } = useApp();
 
   const [nome, setNome] = useState('');
-  const [nivel, setNivel] = useState('1');
+  const [gols, setGols] = useState('0');
+  const [categoria, setCategoria] = useState('S');
   const [editandoId, setEditandoId] = useState(null);
+  const [ativosIds, setAtivosIds] = useState([]);
 
   useEffect(() => {
-    if (editandoId) {
-      const item = cadastros.find((c) => c.id === editandoId);
-      if (item) {
-        setNome(item.nome);
-        setNivel(item.nivel);
-      }
-    }
-  }, [editandoId, cadastros]);
+    const ativos = proxima.map((item) => item.id);
+    setAtivosIds(ativos);
+  }, [proxima]);
 
   const adicionarOuAtualizarCadastro = () => {
     if (nome.trim() === '') {
@@ -132,44 +118,60 @@ function MainScreen() {
 
     if (editandoId) {
       const atualizados = cadastros.map((item) =>
-        item.id === editandoId ? { ...item, nome, nivel } : item
+        item.id === editandoId ? { ...item, nome, gols, categoria } : item
       );
       setCadastros(atualizados);
+
+      if (ativosIds.includes(editandoId)) {
+        const proximaAtualizada = proxima.map((item) =>
+          item.id === editandoId ? { ...item, nome, gols, categoria } : item
+        );
+        setProxima(proximaAtualizada);
+      }
+
       setEditandoId(null);
     } else {
       const novoCadastro = {
         id: Date.now().toString(),
         nome,
-        nivel,
+        gols,
+        categoria,
       };
       setCadastros([...cadastros, novoCadastro]);
     }
 
     setNome('');
-    setNivel('1');
+    setGols('0');
+    setCategoria('S');
   };
 
   const iniciarEdicao = (item) => {
     setNome(item.nome);
-    setNivel(item.nivel);
+    setGols(item.gols || '0');
+    setCategoria(item.categoria);
     setEditandoId(item.id);
   };
 
   const excluirCadastro = (id) => {
     Alert.alert('Confirmação', 'Deseja excluir este cadastro?', [
-      {
-        text: 'Cancelar',
-        style: 'cancel',
-      },
+      { text: 'Cancelar', style: 'cancel' },
       {
         text: 'Excluir',
         onPress: () => {
           const atualizados = cadastros.filter((item) => item.id !== id);
           setCadastros(atualizados);
+
+          if (ativosIds.includes(id)) {
+            const proximaAtualizada = proxima.filter((item) => item.id !== id);
+            setProxima(proximaAtualizada);
+            setAtivosIds((prev) => prev.filter((pid) => pid !== id));
+          }
+
           if (editandoId === id) {
             setEditandoId(null);
             setNome('');
-            setNivel('1');
+            setGols('0');
+            setCategoria('S');
           }
         },
         style: 'destructive',
@@ -177,15 +179,34 @@ function MainScreen() {
     ]);
   };
 
-  const renderItem = ({ item }) => (
-    <TouchableOpacity onPress={() => iniciarEdicao(item)} style={styles.item}>
-      <View style={{ flex: 1 }}>
-        <Text style={styles.text}>{item.nome}</Text>
-        <Text style={styles.text}>Nível: {item.nivel}</Text>
-      </View>
-      <Button title="🗑️" color="red" onPress={() => excluirCadastro(item.id)} />
-    </TouchableOpacity>
-  );
+  const toggleAtivar = (item) => {
+    if (ativosIds.includes(item.id)) {
+      setAtivosIds((prev) => prev.filter((id) => id !== item.id));
+      setProxima((prev) => prev.filter((p) => p.id !== item.id));
+    } else {
+      setAtivosIds((prev) => [...prev, item.id]);
+      setProxima((prev) => [...prev, item]);
+    }
+  };
+
+  const renderItem = ({ item }) => {
+    const ativado = ativosIds.includes(item.id);
+    return (
+      <TouchableOpacity onPress={() => iniciarEdicao(item)} style={styles.item}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.text}>{item.nome}</Text>
+          <Text style={styles.text}>Gols: {item.gols || 0}</Text>
+          <Text style={styles.text}>Categoria: {item.categoria}</Text>
+        </View>
+        <Button
+          title={ativado ? 'Desativar' : 'Ativar'}
+          color={ativado ? 'red' : 'green'}
+          onPress={() => toggleAtivar(item)}
+        />
+        <Button id="delete" style={styles.delete} title="🗑️" color="gray" onPress={() => excluirCadastro(item.id)} />
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <View style={styles.container}>
@@ -198,14 +219,24 @@ function MainScreen() {
         onChangeText={setNome}
       />
 
+      <Text style={{ fontSize: 16, marginBottom: 6 }}>Gols</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="0"
+        value={gols}
+        onChangeText={setGols}
+        keyboardType="numeric"
+      />
+
+      {/* <Text style={{ fontSize: 16, marginBottom: 6 }}>Categoria</Text> */}
       <Picker
-        selectedValue={nivel}
+        selectedValue={categoria}
         style={styles.picker}
-        onValueChange={(itemValue) => setNivel(itemValue)}
+        onValueChange={(itemValue) => setCategoria(itemValue)}
       >
-        <Picker.Item label="Nível 1" value="1" />
-        <Picker.Item label="Nível 2" value="2" />
-        <Picker.Item label="Nível 3" value="3" />
+        <Picker.Item label="Sedentário" value="S" />
+        <Picker.Item label="Jovem" value="J" />
+        <Picker.Item label="Infantil" value="I" />
       </Picker>
 
       <Button
@@ -213,28 +244,7 @@ function MainScreen() {
         onPress={adicionarOuAtualizarCadastro}
       />
 
-      <View style={{ marginVertical: 10 }}>
-        <Button
-          title="Distribuir Times"
-          onPress={distribuirTimes}
-        />
-      </View>
-
-      {/* Botão Novo Reserva */}
-      <View style={{ marginVertical: 10 }}>
-        <Button
-          title="Novo Reserva"
-          onPress={() => {
-            adicionarReserva(nome, nivel);
-            setNome('');
-            setNivel('1');
-            setEditandoId(null);
-          }}
-        />
-      </View>
-
-      <Text style={styles.title}>Novo Cadastros</Text>
-
+      <Text style={styles.title}>Novos Sedentários</Text>
       <FlatList
         data={cadastros}
         keyExtractor={(item) => item.id}
@@ -244,13 +254,16 @@ function MainScreen() {
   );
 }
 
+// Importando telas externas
+import SecondScreen from './SecondScreen';
+import CalculationScreen from './CalculationScreen';
+
 export default function App() {
   const [cadastros, setCadastros] = useState([]);
   const [timeA, setTimeA] = useState([]);
   const [timeB, setTimeB] = useState([]);
   const [proxima, setProxima] = useState([]);
 
-  // Carrega os dados ao iniciar
   useEffect(() => {
     (async () => {
       const loadedCad = await loadJSON(SALVAR_CADASTROS, []);
@@ -264,58 +277,36 @@ export default function App() {
     })();
   }, []);
 
-  // Persiste cadastros quando alterados
   useEffect(() => {
     saveJSON(SALVAR_CADASTROS, cadastros);
   }, [cadastros]);
 
-  // Função para distribuir os 10 primeiros nos times e salvar
-  const distribuirTimes = useCallback(() => {
-    if (cadastros.length === 0) {
-      Alert.alert('Sem cadastros suficientes');
-      return;
-    }
-    const { timeA: a, timeB: b, proxima: p } = distribuir(cadastros);
-    setTimeA(a);
-    setTimeB(b);
-    setProxima(p);
-    saveJSON(SALVAR_TIME_A, a);
-    saveJSON(SALVAR_TIME_B, b);
-    saveJSON(SALVAR_PROXIMA, p);
-  }, [cadastros]);
+  useEffect(() => {
+    saveJSON(SALVAR_TIME_A, timeA);
+  }, [timeA]);
 
-  // Limpa os times
-  const limparTimes = useCallback(() => {
-    setTimeA([]);
-    setTimeB([]);
-    setProxima([]);
-    saveJSON(SALVAR_TIME_A, []);
-    saveJSON(SALVAR_TIME_B, []);
-    saveJSON(SALVAR_PROXIMA, []);
-  }, []);
+  useEffect(() => {
+    saveJSON(SALVAR_TIME_B, timeB);
+  }, [timeB]);
 
-  // Adiciona reserva nos cadastros e na lista proxima
-  const adicionarReserva = useCallback((nome, nivel) => {
-    if (nome.trim() === '') {
-      Alert.alert('Preencha o nome para reserva');
-      return;
-    }
-    const novo = {
-      id: Date.now().toString(),
-      nome,
-      nivel,
-    };
-    setCadastros((prev) => {
-      const updated = [...prev, novo];
-      saveJSON(SALVAR_CADASTROS, updated);
-      return updated;
-    });
-    setProxima((prev) => {
-      const updated = [...prev, novo];
-      saveJSON(SALVAR_PROXIMA, updated);
-      return updated;
-    });
-  }, []);
+  useEffect(() => {
+    saveJSON(SALVAR_PROXIMA, proxima);
+  }, [proxima]);
+
+  // Distribui os 10 primeiros da lista passada (normalmente proxima)
+  const distribuirTimes = useCallback(
+    (lista) => {
+      if (!lista || lista.length === 0) {
+        Alert.alert('Sem nomes suficientes para distribuir');
+        return;
+      }
+      const { timeA, timeB, proxima: novaProxima } = distribuir(lista);
+      setTimeA(timeA);
+      setTimeB(timeB);
+      setProxima(novaProxima);
+    },
+    []
+  );
 
   const contextValue = {
     cadastros,
@@ -327,18 +318,15 @@ export default function App() {
     proxima,
     setProxima,
     distribuirTimes,
-    distribuir,
-    limparTimes,
-    adicionarReserva,
   };
 
   return (
     <AppContext.Provider value={contextValue}>
       <NavigationContainer>
         <Tab.Navigator screenOptions={{ headerShown: false }}>
-          <Tab.Screen name="Principal" component={MainScreen} />
+          <Tab.Screen name="Home" component={MainScreen} />
           <Tab.Screen name="Times" component={SecondScreen} />
-          <Tab.Screen name="Cálculo" component={CalculationScreen} />
+          <Tab.Screen name="Proxima" component={CalculationScreen} />
         </Tab.Navigator>
       </NavigationContainer>
     </AppContext.Provider>
@@ -346,16 +334,8 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    padding: 20,
-    flex: 1,
-    backgroundColor: '#fff',
-  },
-  title: {
-    fontSize: 22,
-    marginVertical: 10,
-    fontWeight: 'bold',
-  },
+  container: { flex: 1, backgroundColor: '#fff', padding: 20 },
+  title: { fontSize: 22, marginVertical: 10, fontWeight: 'bold' },
   input: {
     borderWidth: 1,
     borderColor: '#999',
@@ -363,19 +343,14 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     borderRadius: 5,
   },
-  picker: {
-    height: 70,
-    marginBottom: 10,
-  },
+  picker: { height: 70, marginBottom: 0 },
   item: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#eee',
-    padding: 10,
-    marginVertical: 4,
+    padding: 0,
+    marginVertical: 0,
     borderRadius: 4,
   },
-  text: {
-    fontSize: 16,
-  },
+  text: { fontSize: 10 },
 });

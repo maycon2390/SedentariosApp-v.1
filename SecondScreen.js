@@ -1,15 +1,18 @@
-// SecondScreen.js
 import React, { useState } from 'react';
+import { distribuir } from './distribuir';
 import {
   View,
   Text,
   FlatList,
   Button,
   StyleSheet,
-  ActivityIndicator,
   TouchableOpacity,
+  Animated,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { useApp } from './App';
+import { FontAwesome } from '@expo/vector-icons';
 
 export default function SecondScreen() {
   const {
@@ -19,224 +22,261 @@ export default function SecondScreen() {
     setTimeB,
     proxima,
     setProxima,
-    limparTimes,
+    setCadastros,
+    cadastros,
+    distribuirTimes,
   } = useApp();
 
-  const [loading, setLoading] = useState(false);
+  const [loadingDistribuir10, setLoadingDistribuir10] = useState(false);
 
-  // Perdeu Time A / B (mantém existentes se quiser manter também)
-  const perdeuTime = async (time, setTime) => {
-    if (time.length === 0) return;
-    setLoading(true);
+  const moverParaProxima = (origem, setOrigem) => {
+    const movidos = origem.slice(0, 5);
+    const restantes = origem.slice(5);
+    const novos = [...proxima, ...movidos];
 
-    // pega os 5 primeiros do time, move para o final de proxima
-    const movingOut = time.slice(0, 5);
-    const restanteTime = time.slice(5);
-    const novaProximaIntermediaria = [...proxima, ...movingOut];
+    setProxima(novos);
+    setOrigem(restantes);
 
-    // atualiza imediatamente proxima e time (removendo os 5)
-    setProxima(novaProximaIntermediaria);
-    setTime(restanteTime);
-
-    // simula aguarde
-    await new Promise((r) => setTimeout(r, 400));
-
-    // pega os 5 primeiros de proxima e adiciona ao final do time
-    const substitutos = novaProximaIntermediaria.slice(0, 5);
-    const restanteProximaFinal = novaProximaIntermediaria.slice(5);
-    const novoTime = [...restanteTime, ...substitutos];
-
-    setTime(novoTime);
-    setProxima(restanteProximaFinal);
-
-    setLoading(false);
-  };
-
-  const perdeuTimeA = () => perdeuTime(timeA, setTimeA);
-  const perdeuTimeB = () => perdeuTime(timeB, setTimeB);
-
-  // Long press em um nome do Time A
-  const onLongPressTimeA = async (item, index) => {
-    if (loading) return;
-    setLoading(true);
-
-    // Remove o item pressionado de timeA
-    const novoTimeAWithout = [...timeA];
-    novoTimeAWithout.splice(index, 1); // remove específico
-    // adiciona esse item ao final de proxima
-    const proximaComMovido = [...proxima, item];
-    setTimeA(novoTimeAWithout);
-    setProxima(proximaComMovido);
-
-    // aguarda
-    await new Promise((r) => setTimeout(r, 300));
-
-    // pega o primeiro da proxima e coloca no final de timeA
-    if (proximaComMovido.length > 0) {
-      const primeiro = proximaComMovido[0];
-      const proximaRestante = proximaComMovido.slice(1);
-      setTimeA([...novoTimeAWithout, primeiro]);
-      setProxima(proximaRestante);
-    }
-
-    setLoading(false);
-  };
-
-  // Long press em um nome do Time B
-  const onLongPressTimeB = async (item, index) => {
-    if (loading) return;
-    setLoading(true);
-
-    const novoTimeBWithout = [...timeB];
-    novoTimeBWithout.splice(index, 1);
-    const proximaComMovido = [...proxima, item];
-    setTimeB(novoTimeBWithout);
-    setProxima(proximaComMovido);
-
-    await new Promise((r) => setTimeout(r, 300));
-
-    if (proximaComMovido.length > 0) {
-      const primeiro = proximaComMovido[0];
-      const proximaRestante = proximaComMovido.slice(1);
-      setTimeB([...novoTimeBWithout, primeiro]);
-      setProxima(proximaRestante);
-    }
-
-    setLoading(false);
-  };
-
-  // Long press em Próxima remove o item (não afeta cadastros)
-  const onLongPressProxima = (item, index) => {
-    const novaProxima = [...proxima];
-    novaProxima.splice(index, 1);
+    const { timeA: novoA, timeB: novoB, proxima: novaProxima } = distribuir(cadastros);
+    setTimeA(novoA);
+    setTimeB(novoB);
     setProxima(novaProxima);
   };
 
-  const renderTimeAItem = ({ item, index }) => (
-    <TouchableOpacity
-      onLongPress={() => onLongPressTimeA(item, index)}
-      style={styles.item}
-    >
-      <Text>
-        {item.nome} (Nível {item.nivel})
-      </Text>
-    </TouchableOpacity>
-  );
+  const substituirJogador = (item, origem, setOrigem) => {
+    const atualProxima = [...proxima];
+    if (atualProxima.length === 0) return;
 
-  const renderTimeBItem = ({ item, index }) => (
-    <TouchableOpacity
-      onLongPress={() => onLongPressTimeB(item, index)}
-      style={styles.item}
-    >
-      <Text>
-        {item.nome} (Nível {item.nivel})
-      </Text>
-    </TouchableOpacity>
-  );
+    const novoOrigem = origem.filter((j) => j.id !== item.id);
+    const primeiroDaProxima = atualProxima.shift();
 
-  const renderProximaItem = ({ item, index }) => (
-    <TouchableOpacity
-      onLongPress={() => onLongPressProxima(item, index)}
-      style={styles.item}
-    >
-      <Text>
-        {item.nome} (Nível {item.nivel}){' '}
-        <Text style={{ fontStyle: 'italic', color: '#888' }}></Text>
-      </Text>
-    </TouchableOpacity>
-  );
+    setOrigem([...novoOrigem, primeiroDaProxima]);
+    setProxima([...atualProxima, item]);
+  };
+
+  const incrementarGols = (item, origem, setOrigem) => {
+    const novoCadastros = cadastros.map((c) =>
+      c.id === item.id ? { ...c, gols: (parseInt(c.gols) || 0) + 1 } : c
+    );
+    setCadastros(novoCadastros);
+
+    setOrigem((prev) =>
+      prev.map((c) =>
+        c.id === item.id ? { ...c, gols: (parseInt(c.gols) || 0) + 1 } : c
+      )
+    );
+  };
+
+  const renderItem = (item, origem, setOrigem) => {
+    const scale = new Animated.Value(1);
+
+    const pulse = () => {
+      Animated.sequence([
+        Animated.timing(scale, {
+          toValue: 1.3,
+          duration: 100,
+          useNativeDriver: true,
+        }),
+        Animated.timing(scale, {
+          toValue: 1,
+          duration: 100,
+          useNativeDriver: true,
+        }),
+      ]).start(() => incrementarGols(item, origem, setOrigem));
+    };
+
+    return (
+      <View style={styles.item}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.text}>{item.nome}</Text>
+          <Text style={styles.text}>Gols: {item.gols}</Text>
+          {/* <Text style={styles.text}>Categoria: {item.categoria}</Text> */}
+        </View>
+        <TouchableOpacity onPress={pulse}>
+          <Animated.View style={{ transform: [{ scale }] }}>
+            <Text style={styles.icon}>⚽</Text>
+          </Animated.View>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.subIcon}
+          onPress={() => substituirJogador(item, origem, setOrigem)}
+        >
+          <FontAwesome name="exchange" size={22} color="#333" />
+        </TouchableOpacity>
+      </View>
+    );
+  };
+
+  const limparTimes = () => {
+    Alert.alert('Confirmação', 'Deseja mover todos os nomes de A e B para Proxima?', [
+      {
+        text: 'Cancelar',
+        style: 'cancel',
+      },
+      {
+        text: 'Confirmar',
+        onPress: () => {
+          const todos = [...timeA, ...timeB];
+          setProxima((prev) => [...prev, ...todos]);
+          setTimeA([]);
+          setTimeB([]);
+        },
+      },
+    ]);
+  };
+
+  const distribuir10DaProxima = () => {
+    if (timeA.length === 5 && timeB.length === 5) {
+      Alert.alert(
+        'Times já estão cheios',
+        'Os times A e B já possuem 5 jogadores cada. Deseja continuar e substituir os times?',
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          {
+            text: 'Confirmar',
+            onPress: () => executarDistribuicao10(),
+          },
+        ]
+      );
+    } else {
+      executarDistribuicao10();
+    }
+  };
+
+  const executarDistribuicao10 = () => {
+    if (proxima.length === 0) {
+      Alert.alert('Tabela Próxima está vazia.');
+      return;
+    }
+
+    setLoadingDistribuir10(true);
+
+    setTimeout(() => {
+      const primeiros10 = proxima.slice(0, 10);
+      const { timeA: novoA, timeB: novoB, proxima: novaProxima } = distribuir(primeiros10);
+
+      setTimeA(novoA);
+      setTimeB(novoB);
+
+      const restanteProxima = proxima.slice(10);
+      setProxima([...novaProxima, ...restanteProxima]);
+
+      setLoadingDistribuir10(false);
+      Alert.alert('Distribuição concluída com sucesso!');
+    }, 1000);
+  };
+
+  const timePerdeu = (time, setTime, nomeTime) => {
+    if (time.length < 5) {
+      Alert.alert(`${nomeTime} possui menos de 5 jogadores.`);
+      return;
+    }
+
+    if (proxima.length < 5) {
+      Alert.alert('A tabela Próxima não tem jogadores suficientes para reposição.');
+      return;
+    }
+
+    Alert.alert(
+      `${nomeTime} perdeu`,
+      `Deseja mover os 5 jogadores atuais do ${nomeTime} para o final da tabela Próxima e repor com os 5 primeiros?`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Confirmar',
+          onPress: () => {
+            const removidos = time.slice(0, 5);
+            const novosDaProxima = proxima.slice(0, 5);
+            const restanteProxima = proxima.slice(5);
+
+            setProxima([...restanteProxima, ...removidos]);
+            setTime(novosDaProxima);
+          },
+        },
+      ]
+    );
+  };
 
   return (
     <View style={styles.container}>
-
-      {loading && (
-        <View style={styles.loading}>
-          <ActivityIndicator size="large" />
-          <Text style={{ marginTop: 4 }}>Aguarde...</Text>
-        </View>
-      )}
-
-      <Text style={styles.sectionTitle}>Time A</Text>
-      <FlatList style={styles.TimeA}
+      <Text style={styles.title}>Time A</Text>
+      <FlatList
         data={timeA}
         keyExtractor={(item) => item.id}
-        renderItem={renderTimeAItem}
-        ListEmptyComponent={<Text>Sem jogadores</Text>}
+        renderItem={({ item }) => renderItem(item, timeA, setTimeA)}
+      />
+      {/* <Button
+        title="Mover 5 de A para Proxima"
+        onPress={() => moverParaProxima(timeA, setTimeA)}
+      /> */}
+      <Button
+        title="Time AZUL Perdeu"
+        color="#212ea7ff"
+        onPress={() => timePerdeu(timeA, setTimeA, 'Time A')}
       />
 
-      <View style={styles.ButtonA}>
-        <Button
-          title="Perdeu Time A"
-          onPress={perdeuTimeA}
-          disabled={loading}
-        />
-      </View>
-
-      <Text style={styles.sectionTitle}>Time B</Text>
-      <FlatList style={styles.TimeB}
+      <Text style={styles.title}>Time B</Text>
+      <FlatList
         data={timeB}
         keyExtractor={(item) => item.id}
-        renderItem={renderTimeBItem}
-        ListEmptyComponent={<Text>Sem jogadores</Text>}
+        renderItem={({ item }) => renderItem(item, timeB, setTimeB)}
+      />
+      {/* <Button
+        title="Mover 5 de B para Proxima"
+        onPress={() => moverParaProxima(timeB, setTimeB)}
+      /> */}
+      <Button
+        title="Time VERDE Perdeu"
+        color="#49a756ff"
+        onPress={() => timePerdeu(timeB, setTimeB, 'Time B')}
       />
 
-      <View style={styles.ButtonB}>
-        <Button
-          title="Perdeu Time B"
-          onPress={perdeuTimeB}
-          disabled={loading}
-        />
+      <View style={{ marginTop: 3 }}>
+        {loadingDistribuir10 ? (
+          <ActivityIndicator size="large" color="#0000ff" />
+        ) : (
+          <Button
+            title="Distribuir Times"
+            color="#0f0f0fff"
+            onPress={distribuir10DaProxima}
+          />
+        )}
       </View>
 
-      <Text style={styles.sectionTitle}>Sedentários</Text>
-      <FlatList style={styles.sedentarios}
-        data={proxima}
-        keyExtractor={(item) => item.id}
-        renderItem={renderProximaItem}
-        ListEmptyComponent={<Text>Sem jogadores</Text>}
-      />
-
-      <Button title="Limpar Times" onPress={limparTimes} disabled={loading} />
-
+      <View style={{ marginTop: 3 }}>
+        <Button title="Limpar Times" color="red" onPress={limparTimes} />
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 13, backgroundColor: '#fff'},
-  sectionTitle: {
+  container: {
+    padding: 16,
+    flex: 1,
+    backgroundColor: '#fff',
+  },
+  title: {
+    fontSize: 18,
+    marginTop: 10,
     fontWeight: 'bold',
-    fontSize: 15,
-    marginTop: 15,
   },
   item: {
-    padding: 5,
-  },
-  loading: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginVertical: 8,
-    gap: 8,
+    backgroundColor: '#eee',
+    padding: 0,
+    marginVertical: 1,
+    borderRadius: 10,
   },
-   TimeA: {
-    padding: 6,
-    backgroundColor: '#7d98f1ff',
-    marginVertical: 4,
+  text: {
+    fontSize: 18,
   },
-  ButtonA: {
-  
+  icon: {
+    fontSize: 24,
+    marginHorizontal: 10,
   },
-  TimeB: {
-    padding: 6,
-    backgroundColor: '#db6030ff',
-    marginVertical: 4,
-  },
-  ButtonB: {
-  
-  },
-  sedentarios: {
-    padding: 6,
-    backgroundColor: '#9b9797ff',
-    marginVertical: 4,
+  subIcon: {
+    marginHorizontal: 8,
   },
 });

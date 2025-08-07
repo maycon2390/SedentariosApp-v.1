@@ -1,63 +1,69 @@
-// CalculationScreen.js
-import React, { useState } from 'react';
+import React from 'react';
 import {
   View,
   Text,
-  TextInput,
-  Button,
+  FlatList,
   StyleSheet,
+  Button,
   Alert,
-  Keyboard,
 } from 'react-native';
 import { useApp } from './App';
 
 export default function CalculationScreen() {
-  const { cadastros } = useApp();
-  const quantidade = cadastros.length;
+  const { cadastros, proxima, setProxima } = useApp();
+  const total = cadastros.length;
 
-  const [valor, setValor] = useState('');
-  const [resultado, setResultado] = useState(null);
+  const [valor, setValor] = React.useState('1');
 
-  const calcular = () => {
-    const numero = parseFloat(valor.replace(',', '.'));
-    if (isNaN(numero)) {
-      Alert.alert('Erro', 'Digite um número válido.');
-      return;
-    }
-    if (quantidade === 0) {
-      Alert.alert('Erro', 'Não há cadastros para dividir.');
-      return;
-    }
-    const res = numero / quantidade;
-    setResultado(res);
-    Keyboard.dismiss();
-  };
+  const resultado = total && valor ? (total / parseFloat(valor)).toFixed(2) : 0;
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Cálculo</Text>
-      <Text style={styles.label}>
-        Quantidade de nomes cadastrados: {quantidade}
-      </Text>
+      {/* <Text style={styles.title}>Cálculo</Text>
 
-      <TextInput
-        style={styles.input}
-        placeholder="Digite um valor"
-        value={valor}
-        onChangeText={setValor}
-        keyboardType="numeric"
+      <Text style={styles.text}>Total de nomes: {total}</Text>
+
+      <View style={styles.inputRow}>
+        <Text style={styles.text}>Dividir por:</Text>
+        <Text style={styles.valor}>{valor}</Text>
+      </View>
+
+      <Text style={styles.text}>Resultado: {resultado}</Text> */}
+
+      <Text style={styles.title}>Proxima</Text>
+
+      <FlatList
+        data={proxima}
+        keyExtractor={(item) => item.id}
+        renderItem={({ item, index }) => (
+          <View style={styles.item}>
+            <Text style={styles.text}>
+              {index + 1} - {item.nome}
+            </Text>
+            <Text style={styles.text}>Gols: {item.gols}</Text>
+            {/* <Text style={styles.text}>Categoria: {item.categoria}</Text> */}
+          </View>
+        )}
       />
 
-      <Button title="Calcular" onPress={calcular} />
-
       <View style={{ marginTop: 20 }}>
-        {resultado !== null ? (
-          <Text style={styles.result}>
-            Resultado: {resultado.toLocaleString(undefined, { maximumFractionDigits: 4 })}
-          </Text>
-        ) : (
-          <Text style={styles.hint}>Insira um valor e pressione Calcular</Text>
-        )}
+        <Button
+          title="Limpar Proxima"
+          color="red"
+          onPress={() => {
+            Alert.alert('Confirmação', 'Deseja limpar toda a tabela Proxima?', [
+              {
+                text: 'Cancelar',
+                style: 'cancel',
+              },
+              {
+                text: 'Confirmar',
+                style: 'destructive',
+                onPress: () => setProxima([]),
+              },
+            ]);
+          }}
+        />
       </View>
     </View>
   );
@@ -65,20 +71,31 @@ export default function CalculationScreen() {
 
 const styles = StyleSheet.create({
   container: {
-    padding: 30,
+    padding: 20,
     flex: 1,
     backgroundColor: '#fff',
   },
-  title: { fontSize: 24, fontWeight: 'bold', marginBottom: 12 },
-  label: { fontSize: 16, marginBottom: 8 },
-  input: {
-    borderWidth: 1,
-    borderColor: '#999',
-    padding: 10,
-    borderRadius: 6,
-    marginBottom: 12,
-    fontSize: 16,
+  title: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginVertical: 10,
   },
-  result: { fontSize: 18, fontWeight: '600' },
-  hint: { fontSize: 14, fontStyle: 'italic', color: '#555' },
+  text: {
+    fontSize: 18,
+  },
+  inputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 10,
+  },
+  valor: {
+    fontSize: 16,
+    marginLeft: 10,
+  },
+  item: {
+    backgroundColor: '#eee',
+    padding: 10,
+    borderRadius: 5,
+    marginVertical: 4,
+  },
 });
