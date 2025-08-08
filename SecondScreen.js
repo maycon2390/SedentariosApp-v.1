@@ -29,20 +29,6 @@ export default function SecondScreen() {
 
   const [loadingDistribuir10, setLoadingDistribuir10] = useState(false);
 
-  const moverParaProxima = (origem, setOrigem) => {
-    const movidos = origem.slice(0, 5);
-    const restantes = origem.slice(5);
-    const novos = [...proxima, ...movidos];
-
-    setProxima(novos);
-    setOrigem(restantes);
-
-    const { timeA: novoA, timeB: novoB, proxima: novaProxima } = distribuir(cadastros);
-    setTimeA(novoA);
-    setTimeB(novoB);
-    setProxima(novaProxima);
-  };
-
   const substituirJogador = (item, origem, setOrigem) => {
     const atualProxima = [...proxima];
     if (atualProxima.length === 0) return;
@@ -89,8 +75,7 @@ export default function SecondScreen() {
       <View style={styles.item}>
         <View style={{ flex: 1 }}>
           <Text style={styles.text}>{item.nome}</Text>
-          <Text style={styles.text}>Gols: {item.gols}</Text>
-          {/* <Text style={styles.text}>Categoria: {item.categoria}</Text> */}
+          <Text style={styles.text}>⚽ {item.gols}</Text>
         </View>
         <TouchableOpacity onPress={pulse}>
           <Animated.View style={{ transform: [{ scale }] }}>
@@ -108,7 +93,7 @@ export default function SecondScreen() {
   };
 
   const limparTimes = () => {
-    Alert.alert('Confirmação', 'Deseja mover todos os nomes de A e B para Proxima?', [
+    Alert.alert('Confirmação', 'Deseja mover todos os nomes de A e B para Próxima?', [
       {
         text: 'Cancelar',
         style: 'cancel',
@@ -172,25 +157,39 @@ export default function SecondScreen() {
       return;
     }
 
-    if (proxima.length < 5) {
-      Alert.alert('A tabela Próxima não tem jogadores suficientes para reposição.');
-      return;
-    }
-
     Alert.alert(
       `${nomeTime} perdeu`,
-      `Deseja mover os 5 jogadores atuais do ${nomeTime} para o final da tabela Próxima e repor com os 5 primeiros?`,
+      `Deseja mover os 5 jogadores atuais do ${nomeTime} para o final da tabela Próxima e repor com os 5 primeiros da lista (após atualizar)?`,
       [
         { text: 'Cancelar', style: 'cancel' },
         {
           text: 'Confirmar',
           onPress: () => {
-            const removidos = time.slice(0, 5);
-            const novosDaProxima = proxima.slice(0, 5);
-            const restanteProxima = proxima.slice(5);
+            setLoadingDistribuir10(true);
 
-            setProxima([...restanteProxima, ...removidos]);
-            setTime(novosDaProxima);
+            setTimeout(() => {
+              // Mover os 5 jogadores do time para o final da proxima
+              const removidos = time.slice(0, 5);
+              const novaProximaTemp = [...proxima, ...removidos];
+
+              // Verificar se agora há pelo menos 5 jogadores disponíveis para reposição
+              if (novaProximaTemp.length < 5) {
+                setLoadingDistribuir10(false);
+                Alert.alert('Erro', 'Mesmo após mover, a tabela Próxima ainda não tem jogadores suficientes para reposição.');
+                return;
+              }
+
+              // Pegar os 5 primeiros da nova lista proxima
+              const novosDaProxima = novaProximaTemp.slice(0, 5);
+              const restanteProxima = novaProximaTemp.slice(5);
+
+              // Atualizar os estados
+              setProxima(restanteProxima);
+              setTime(novosDaProxima);
+
+              setLoadingDistribuir10(false);
+              Alert.alert(`Reposição concluída para ${nomeTime}`);
+            }, 1000);
           },
         },
       ]
@@ -199,52 +198,48 @@ export default function SecondScreen() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Time A</Text>
-      <FlatList
+      <Text style={styles.title}></Text>
+      <FlatList style={styles.FlatListAzul}
         data={timeA}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => renderItem(item, timeA, setTimeA)}
       />
-      {/* <Button
-        title="Mover 5 de A para Proxima"
-        onPress={() => moverParaProxima(timeA, setTimeA)}
-      /> */}
       <Button
         title="Time AZUL Perdeu"
         color="#212ea7ff"
         onPress={() => timePerdeu(timeA, setTimeA, 'Time A')}
+        disabled={loadingDistribuir10}
       />
 
-      <Text style={styles.title}>Time B</Text>
-      <FlatList
+      <Text style={styles.title}></Text>
+      <FlatList style={styles.FlatListLaranja}
         data={timeB}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => renderItem(item, timeB, setTimeB)}
       />
-      {/* <Button
-        title="Mover 5 de B para Proxima"
-        onPress={() => moverParaProxima(timeB, setTimeB)}
-      /> */}
       <Button
-        title="Time VERDE Perdeu"
-        color="#49a756ff"
+        title="Time LARANJA Perdeu"
+        color="#f59426d2"
         onPress={() => timePerdeu(timeB, setTimeB, 'Time B')}
+        disabled={loadingDistribuir10}
       />
+
+      {loadingDistribuir10 && (
+        <Text style={{ color: 'white', textAlign: 'center', marginVertical: 5 }}>
+          Processando substituição...
+        </Text>
+      )}
 
       <View style={{ marginTop: 3 }}>
         {loadingDistribuir10 ? (
-          <ActivityIndicator size="large" color="#0000ff" />
+          <ActivityIndicator size="large" color="#ffffff" />
         ) : (
-          <Button
-            title="Distribuir Times"
-            color="#0f0f0fff"
-            onPress={distribuir10DaProxima}
-          />
+          <Button title="Distribuir Times" color="#0f0f0fff" onPress={distribuir10DaProxima} />
         )}
       </View>
 
       <View style={{ marginTop: 3 }}>
-        <Button title="Limpar Times" color="red" onPress={limparTimes} />
+        <Button title="Limpar Times" color="red" onPress={limparTimes} disabled={loadingDistribuir10} />
       </View>
     </View>
   );
@@ -254,12 +249,19 @@ const styles = StyleSheet.create({
   container: {
     padding: 16,
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#808080',
+  },
+  FlatListAzul: {
+    backgroundColor: '#0000ff'
+  },
+  FlatListLaranja: {
+    backgroundColor: '#ffa500'
   },
   title: {
     fontSize: 18,
     marginTop: 10,
     fontWeight: 'bold',
+    color: '#fff',
   },
   item: {
     flexDirection: 'row',

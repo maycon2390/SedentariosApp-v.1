@@ -40,7 +40,7 @@ export default function CalculationScreen() {
             <Text style={styles.text}>
               {index + 1} - {item.nome}
             </Text>
-            <Text style={styles.text}>Gols: {item.gols}</Text>
+            <Text style={styles.text}>⚽ {item.gols}</Text>
             {/* <Text style={styles.text}>Categoria: {item.categoria}</Text> */}
           </View>
         )}
@@ -73,15 +73,16 @@ const styles = StyleSheet.create({
   container: {
     padding: 20,
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#808080',
   },
   title: {
     fontSize: 20,
     fontWeight: 'bold',
     marginVertical: 10,
+    marginTop: 30,
   },
   text: {
-    fontSize: 18,
+    fontSize: 13,
   },
   inputRow: {
     flexDirection: 'row',

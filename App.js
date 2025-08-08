@@ -1,3 +1,5 @@
+// App.js
+
 import React, {
   createContext,
   useContext,
@@ -19,6 +21,7 @@ import { Picker } from '@react-native-picker/picker';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Ionicons } from '@expo/vector-icons'; // Ícones
 
 // Constantes para AsyncStorage
 const SALVAR_CADASTROS = 'cadastros';
@@ -26,7 +29,7 @@ const SALVAR_TIME_A = 'timeA';
 const SALVAR_TIME_B = 'timeB';
 const SALVAR_PROXIMA = 'proxima';
 
-// AsyncStorage helpers
+// Funções de armazenamento
 const loadJSON = async (key, fallback) => {
   try {
     const v = await AsyncStorage.getItem(key);
@@ -45,59 +48,17 @@ const saveJSON = async (key, value) => {
   }
 };
 
+// Contexto global
 const AppContext = createContext();
 export const useApp = () => useContext(AppContext);
 
+// Navegação por abas
 const Tab = createBottomTabNavigator();
 
-// Função para distribuir 10 primeiros da lista entre timeA e timeB niveladamente por categoria
-const distribuir = (lista) => {
-  const dezPrimeiros = lista.slice(0, 10);
-  const restante = lista.slice(10);
-
-  // Agrupa por categoria (S, J, I)
-  const porCategoria = {};
-  dezPrimeiros.forEach((item) => {
-    if (!porCategoria[item.categoria]) porCategoria[item.categoria] = [];
-    porCategoria[item.categoria].push(item);
-  });
-
-  const timeA = [];
-  const timeB = [];
-
-  Object.values(porCategoria).forEach((listaCategoria) => {
-    const metade = Math.floor(listaCategoria.length / 2);
-    const sobra = listaCategoria.length % 2;
-
-    timeA.push(...listaCategoria.slice(0, metade));
-    timeB.push(...listaCategoria.slice(metade, metade + metade));
-
-    if (sobra) {
-      if (timeA.length <= timeB.length) {
-        timeA.push(listaCategoria[listaCategoria.length - 1]);
-      } else {
-        timeB.push(listaCategoria[listaCategoria.length - 1]);
-      }
-    }
-  });
-
-  const trimTime = (time) => (time.length <= 5 ? time : time.slice(0, 5));
-  const finalA = trimTime(timeA);
-  const finalB = trimTime(timeB);
-
-  // Remove usados da proxima e junta resto com o restante da lista
-  const usados = finalA.concat(finalB);
-  const novaProxima = [
-    ...restante,
-    ...lista.filter((item) => !dezPrimeiros.includes(item)),
-  ].filter((item) => !usados.some((u) => u.id === item.id));
-
-  return { timeA: finalA, timeB: finalB, proxima: novaProxima };
-};
-
-// Tela Principal: cadastro e ativar/desativar nomes
+// Tela principal
 function MainScreen() {
   const { cadastros, setCadastros, proxima, setProxima } = useApp();
+  const [cadastrosOrdenados, setCadastrosOrdenados] = useState([]);
 
   const [nome, setNome] = useState('');
   const [gols, setGols] = useState('0');
@@ -109,6 +70,11 @@ function MainScreen() {
     const ativos = proxima.map((item) => item.id);
     setAtivosIds(ativos);
   }, [proxima]);
+
+  useEffect(() => {
+  const ordenados = [...cadastros].sort((a, b) => Number(b.gols) - Number(a.gols));
+  setCadastrosOrdenados(ordenados);
+}, [cadastros]);
 
   const adicionarOuAtualizarCadastro = () => {
     if (nome.trim() === '') {
@@ -195,69 +161,82 @@ function MainScreen() {
       <TouchableOpacity onPress={() => iniciarEdicao(item)} style={styles.item}>
         <View style={{ flex: 1 }}>
           <Text style={styles.text}>{item.nome}</Text>
-          <Text style={styles.text}>Gols: {item.gols || 0}</Text>
-          <Text style={styles.text}>Categoria: {item.categoria}</Text>
+          <Text style={styles.text}>⚽ {item.gols || 0}</Text>
         </View>
         <Button
           title={ativado ? 'Desativar' : 'Ativar'}
-          color={ativado ? 'red' : 'green'}
+          color={ativado ? 'black' : 'green'}
           onPress={() => toggleAtivar(item)}
         />
-        <Button id="delete" style={styles.delete} title="🗑️" color="gray" onPress={() => excluirCadastro(item.id)} />
+        <Button title="Delete" color="red" onPress={() => excluirCadastro(item.id)} />
       </TouchableOpacity>
     );
   };
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Cadastro</Text>
+      <View style={styles.containerCadastro}>
+        <TextInput
+          style={styles.inputCadastro}
+          placeholder="Nome Sedentário"
+          value={nome}
+          onChangeText={setNome}
+        />
+        <Text>⚽</Text>
+        <TextInput
+          style={styles.inputGols}
+          placeholder="0"
+          value={gols}
+          onChangeText={setGols}
+          keyboardType="numeric"
+        />
+      </View>
 
-      <TextInput
-        style={styles.input}
-        placeholder="Nome"
-        value={nome}
-        onChangeText={setNome}
-      />
-
-      <Text style={{ fontSize: 16, marginBottom: 6 }}>Gols</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="0"
-        value={gols}
-        onChangeText={setGols}
-        keyboardType="numeric"
-      />
-
-      {/* <Text style={{ fontSize: 16, marginBottom: 6 }}>Categoria</Text> */}
-      <Picker
-        selectedValue={categoria}
-        style={styles.picker}
-        onValueChange={(itemValue) => setCategoria(itemValue)}
-      >
-        <Picker.Item label="Sedentário" value="S" />
-        <Picker.Item label="Jovem" value="J" />
-        <Picker.Item label="Infantil" value="I" />
-      </Picker>
+      {/* Categoria desativada por agora */}
+      {/* <View style={styles.containerCategoria}>
+        <Picker
+          selectedValue={categoria}
+          style={styles.picker}
+          onValueChange={(itemValue) => setCategoria(itemValue)}
+        >
+          <Picker.Item label="Sedentário" value="S" />
+          <Picker.Item label="Jovem" value="J" />
+          <Picker.Item label="Infantil" value="I" />
+        </Picker>
+      </View> */}
 
       <Button
         title={editandoId ? 'Atualizar Cadastro' : 'Cadastrar'}
         onPress={adicionarOuAtualizarCadastro}
       />
 
-      <Text style={styles.title}>Novos Sedentários</Text>
-      <FlatList
-        data={cadastros}
-        keyExtractor={(item) => item.id}
-        renderItem={renderItem}
-      />
+      <Text style={styles.title}>Sedentários</Text>
+
+     <FlatList
+  style={styles.FlatList}
+  data={cadastrosOrdenados}
+  keyExtractor={(item) => item.id}
+  renderItem={renderItem}
+/>
     </View>
   );
 }
 
-// Importando telas externas
+// Telas externas
 import SecondScreen from './SecondScreen';
 import CalculationScreen from './CalculationScreen';
 
+// Função fictícia para distribuir (você pode substituir pela real)
+const distribuir = (lista) => {
+  const metade = Math.ceil(lista.length / 2);
+  return {
+    timeA: lista.slice(0, metade),
+    timeB: lista.slice(metade, lista.length),
+    proxima: [],
+  };
+};
+
+// App principal
 export default function App() {
   const [cadastros, setCadastros] = useState([]);
   const [timeA, setTimeA] = useState([]);
@@ -293,20 +272,16 @@ export default function App() {
     saveJSON(SALVAR_PROXIMA, proxima);
   }, [proxima]);
 
-  // Distribui os 10 primeiros da lista passada (normalmente proxima)
-  const distribuirTimes = useCallback(
-    (lista) => {
-      if (!lista || lista.length === 0) {
-        Alert.alert('Sem nomes suficientes para distribuir');
-        return;
-      }
-      const { timeA, timeB, proxima: novaProxima } = distribuir(lista);
-      setTimeA(timeA);
-      setTimeB(timeB);
-      setProxima(novaProxima);
-    },
-    []
-  );
+  const distribuirTimes = useCallback((lista) => {
+    if (!lista || lista.length === 0) {
+      Alert.alert('Sem nomes suficientes para distribuir');
+      return;
+    }
+    const { timeA, timeB, proxima: novaProxima } = distribuir(lista);
+    setTimeA(timeA);
+    setTimeB(timeB);
+    setProxima(novaProxima);
+  }, []);
 
   const contextValue = {
     cadastros,
@@ -323,34 +298,81 @@ export default function App() {
   return (
     <AppContext.Provider value={contextValue}>
       <NavigationContainer>
-        <Tab.Navigator screenOptions={{ headerShown: false }}>
-          <Tab.Screen name="Home" component={MainScreen} />
-          <Tab.Screen name="Times" component={SecondScreen} />
-          <Tab.Screen name="Proxima" component={CalculationScreen} />
+        <Tab.Navigator
+          screenOptions={({ route }) => ({
+            headerShown: false,
+            tabBarIcon: ({ focused, color, size }) => {
+              let iconName;
+
+              if (route.name === 'Home') {
+                iconName = focused ? 'home' : 'home-outline';
+              } else if (route.name === 'Times') {
+                iconName = focused ? 'people' : 'people-outline';
+              } else if (route.name === 'Proxima') {
+                iconName = focused ? 'arrow-forward-circle' : 'arrow-forward-circle-outline';
+              }
+
+              return <Ionicons name={iconName} size={size} color={color} />;
+            },
+            tabBarActiveTintColor: 'tomato',
+            tabBarInactiveTintColor: 'gray',
+          })}
+        >
+          <Tab.Screen name="Home" component={MainScreen} options={{ title: 'Home' }} />
+          <Tab.Screen name="Times" component={SecondScreen} options={{ title: 'Times' }} />
+          <Tab.Screen name="Proxima" component={CalculationScreen} options={{ title: 'Próxima' }} />
         </Tab.Navigator>
       </NavigationContainer>
     </AppContext.Provider>
   );
 }
 
+// Estilos
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff', padding: 20 },
-  title: { fontSize: 22, marginVertical: 10, fontWeight: 'bold' },
-  input: {
+  container: {
+    padding: 10,
+    backgroundColor: '#fff',
+    flex: 1,
+  },
+  containerCadastro: {
+    backgroundColor: '#fff',
+    flexDirection: 'row',
+    marginTop: 40,
+    marginBottom: 10,
+  },
+  inputCadastro: {
     borderWidth: 1,
     borderColor: '#999',
-    padding: 8,
-    marginBottom: 10,
-    borderRadius: 5,
+    padding: 5,
+    borderRadius: 10,
+    width: 270,
+    marginRight: 15,
   },
-  picker: { height: 70, marginBottom: 0 },
+  inputGols: {
+    borderWidth: 1,
+    borderColor: '#999',
+    padding: 5,
+    borderRadius: 10,
+    width: 90,
+    marginLeft: 15,
+  },
+  FlatList: {
+    marginBottom: 15,
+  },
+  title: {
+    fontSize: 18,
+    marginVertical: 10,
+    fontWeight: 'bold',
+  },
   item: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#eee',
-    padding: 0,
-    marginVertical: 0,
-    borderRadius: 4,
+    marginVertical: 3,
+    borderRadius: 10,
+    paddingHorizontal: 10,
   },
-  text: { fontSize: 10 },
+  text: {
+    fontSize: 13,
+  },
 });
